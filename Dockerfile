@@ -40,4 +40,4 @@ USER app_user
 EXPOSE 7860
 
 # Start the FastAPI app on port 7860, the default port expected by Hugging Face Spaces
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["uvicorn", "app:main", "--host", "0.0.0.0", "--port", "7860"]

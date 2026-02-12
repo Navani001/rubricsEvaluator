@@ -185,7 +185,14 @@ async def process_image(filename, file_size, img_path):
                 "arrows": features["arrows"],
                 "depth": features["branching_depth"]
             },
-            "flow_paths": flow_paths
+            "flow_paths": flow_paths,
+            "detailed_features": {
+                "extracted_text_content": features.get("text", ""),
+                "pseudocode_analysis": features.get("pseudocode_indicators", {}),
+                "text_density": features.get("text_density", 0),
+                "structural_connections": features.get("connections", []),
+                "arrow_details": features.get("arrow_connections", [])
+            }
         }
         
     except Exception as e:

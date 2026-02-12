@@ -6,12 +6,17 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 import pytesseract
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
+import asyncio
+import json
+import tempfile
+import uuid
 
 from models import PDFRequest, QuizzRequest
-from routes import handle_pdf_upload
+from routes import handle_pdf_upload, extract_images_from_pdf, process_image
 from query_pinecone import initialize_pinecone, query_collection, get_available_books, quizz_collection
+from evaluation import evaluate_documents_sync
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -147,6 +152,90 @@ async def generate_quiz(request: QuizzRequest):
         return {"status": "success", "data": result}
     except Exception as e:
         logger.error(f"Quiz generation error: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+
+# ========================
+# Evaluation Routes
+# ========================
+
+@app.post('/evaluate')
+async def evaluate_documents(
+    files: list[UploadFile] = File(...),
+    rubrics: str = Form(...)
+):
+    """
+    Evaluate documents against custom rubrics.
+    
+    Args:
+        files: PDF/DOCX files to evaluate
+        rubrics: JSON string containing evaluation rubric(s)
+        
+    Returns:
+        Evaluation results with scores and reasoning
+    """
+    try:
+        # Parse rubrics JSON
+        rubric_data = json.loads(rubrics)
+        
+        # Prepare uploads directory
+        upload_dir = Path("uploads")
+        upload_dir.mkdir(exist_ok=True)
+
+        # Store files in uploads directory
+        saved_files = []
+        document_data = {}
+        image_analysis_data = {}
+        
+        for file in files:
+            # Generate unique filename
+            unique_filename = f"{uuid.uuid4()}_{Path(file.filename).name}"
+            file_path = upload_dir / unique_filename
+            
+            # Save uploaded file
+            content = await file.read()
+            with open(file_path, "wb") as f:
+                f.write(content)
+                
+            saved_files.append(file_path)
+            document_data[file.filename] = str(file_path)
+                
+            # Extract and process images
+            try:
+                images = await extract_images_from_pdf(file_path, upload_dir, unique_filename)
+                
+                file_img_results = []
+                for img_path in images:
+                    res = await process_image(file.filename, len(content), img_path)
+                    if res:
+                        file_img_results.append(res)
+                
+                image_analysis_data[file.filename] = file_img_results
+            except Exception as img_err:
+                logger.warning(f"Image processing failed for evaluation: {img_err}")
+                image_analysis_data[file.filename] = []
+        
+        # Run evaluation (sync function)
+        evaluation_results = await asyncio.to_thread(
+            evaluate_documents_sync,
+            document_data,
+            rubric_data,
+            image_analysis_data
+        )
+        
+        # Files are intentionally kept in 'uploads' directory
+        
+        return {
+            "status": "success",
+            "evaluations": evaluation_results,
+            "saved_files": [str(p) for p in saved_files]
+        }
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid rubrics JSON: {str(e)}")
+        return {"status": "error", "message": f"Invalid rubrics JSON: {str(e)}"}
+    except Exception as e:
+        logger.error(f"Evaluation error: {str(e)}")
         return {"status": "error", "message": str(e)}
 
 

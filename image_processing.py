@@ -115,10 +115,8 @@ def extract_features(img_path, detect_arrowheads, detect_flow_connections,
     text_regions = extract_text_regions(gray)
     text_to_shape_map = find_text_to_shape_mapping(shapes, text_regions)
     
-    # Extract text from shapes (only if full OCR didn't find much)
-    shape_texts = {}
-    if len(text.strip()) < 100:
-        shape_texts = extract_text_from_shapes(gray, shapes)
+    # Extract text from shapes
+    shape_texts = extract_text_from_shapes(gray, shapes)
     
     # Find connections
     arrow_connections = find_arrow_connections(edges, shapes)

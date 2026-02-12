@@ -1,6 +1,7 @@
 """
 Text and shape analysis functions
 """
+import cv2
 import pytesseract
 import logging
 
@@ -55,6 +56,10 @@ def find_text_to_shape_mapping(shapes, text_regions):
     return text_to_shape
 
 
+import cv2
+
+# ... (omitted imports)
+
 def extract_text_from_shapes(gray, shapes, min_shape_area=500):
     """
     Extract text from significant shape regions using OCR.
@@ -75,7 +80,7 @@ def extract_text_from_shapes(gray, shapes, min_shape_area=500):
         
         x, y, w, h = shape["x"], shape["y"], shape["w"], shape["h"]
         
-        padding = 5
+        padding = 10
         x_start = max(0, x - padding)
         y_start = max(0, y - padding)
         x_end = min(gray.shape[1], x + w + padding)
@@ -85,11 +90,25 @@ def extract_text_from_shapes(gray, shapes, min_shape_area=500):
         
         if region.shape[0] > 10 and region.shape[1] > 10:
             try:
+                # Preprocess region: upscale and threshold
+                scale_factor = 2
+                region_resized = cv2.resize(region, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
+                
+                # Apply Otsu's thresholding to get binary image
+                _, region_thresh = cv2.threshold(region_resized, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                
+                # Try OCR with different configs if one fails
                 extracted_text = pytesseract.image_to_string(
-                    region,
-                    config='--psm 6 --oem 1'
+                    region_thresh,
+                    config='--psm 11 --oem 1'
                 ).strip()
                 
+                if not extracted_text or len(extracted_text) < 2:
+                     extracted_text = pytesseract.image_to_string(
+                        region_thresh,
+                        config='--psm 6 --oem 1'
+                    ).strip()
+
                 if extracted_text and len(extracted_text) > 1:
                     shape_texts[shape["id"]] = extracted_text
             except Exception as e:

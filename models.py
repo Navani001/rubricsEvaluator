@@ -18,3 +18,9 @@ class QuizzRequest(BaseModel):
     book: Optional[str] = None
     n_results: Optional[int] = 3
     question: Optional[str] = 10
+
+
+class RubricGenRequest(BaseModel):
+    """Request model for rubric generation"""
+    text: str
+    topic: Optional[str] = None

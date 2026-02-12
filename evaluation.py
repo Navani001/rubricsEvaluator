@@ -121,3 +121,66 @@ Return the output as a valid JSON object with detailed evaluations.
             }
             
     return results
+
+
+def generate_rubrics_from_text(text: str, topic: str = None):
+    """
+    Generate evaluation rubrics based on provided text using Cerebras LLM.
+    
+    Args:
+        text: The text content to generate rubrics from
+        topic: Optional topic to guide generation
+        
+    Returns:
+        Dict containing generated rubrics
+    """
+    client = Cerebras(api_key=CEREBRAS_API_KEY)
+    
+    system_prompt = "You are an expert educational assessment creator. Create detailed evaluation rubrics based on the provided text."
+    
+    context = ""
+    if topic:
+        context = f"Topic: {topic}\n\n"
+        
+    user_prompt = f"""
+{context}Reference Content:
+{text[:4000]}  # Limit context for generation
+
+Please generate a structured evaluation rubric based on the key concepts in the content above.
+The output must be a valid JSON object with the following structure:
+{{
+  "rubric_name": "string",
+  "criteria": [
+    {{
+      "name": "Criteria Name",
+      "description": "Detailed description of what to evaluate",
+      "scoring_scale": {{
+        "min": 1,
+        "max": 10,
+        "descriptors": {{
+           "1-3": "Description for low score",
+           "4-7": "Description for medium score",
+           "8-10": "Description for high score"
+        }}
+      }}
+    }}
+  ]
+}}
+"""
+
+    try:
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            model="llama-3.3-70b",
+            response_format={"type": "json_object"}
+        )
+        
+        return json.loads(chat_completion.choices[0].message.content)
+    except Exception as e:
+        return {
+            "error": str(e),
+            "status": "failed"
+        }

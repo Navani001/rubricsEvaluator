@@ -13,10 +13,10 @@ import json
 import tempfile
 import uuid
 
-from models import PDFRequest, QuizzRequest
+from models import PDFRequest, QuizzRequest, RubricGenRequest
 from routes import handle_pdf_upload, extract_images_from_pdf, process_image
 from query_pinecone import initialize_pinecone, query_collection, get_available_books, quizz_collection
-from evaluation import evaluate_documents_sync
+from evaluation import evaluate_documents_sync, generate_rubrics_from_text
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -236,6 +236,29 @@ async def evaluate_documents(
         return {"status": "error", "message": f"Invalid rubrics JSON: {str(e)}"}
     except Exception as e:
         logger.error(f"Evaluation error: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+
+@app.post('/generate-rubrics')
+async def generate_rubrics(request: RubricGenRequest):
+    """
+    Generate evaluation rubrics from provided text.
+    
+    Args:
+        request: RubricGenRequest with text content
+        
+    Returns:
+        Generated rubrics in JSON format
+    """
+    try:
+        result = await asyncio.to_thread(
+            generate_rubrics_from_text,
+            request.text,
+            request.topic
+        )
+        return {"status": "success", "data": result}
+    except Exception as e:
+        logger.error(f"Rubric generation error: {str(e)}")
         return {"status": "error", "message": str(e)}
 
 
